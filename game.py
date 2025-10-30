@@ -42,26 +42,36 @@ class Game:
             self.current.shape = old_shape
 
     def drop(self):
+        """Control the logic of block falling, scoring and upgrading"""
         now = pygame.time.get_ticks()
         if now - self.last_drop_time > self.drop_speed:
+            self.last_drop_time = now
             if not self.move(0, 1):
+                # The cube landed.
                 self.board.lock_shape(self.current.shape, self.current.color, self.current.x, self.current.y)
                 cleared = self.board.clear_lines()
+
                 if cleared > 0:
                     self.score += cleared * 100
+                    old_level = self.level
                     self.lines_cleared += cleared
-                    # 每清10行提升一次关卡速度
-                    if self.lines_cleared % 10 == 0 and self.drop_speed > 150:
-                        self.level += 1
-                        self.drop_speed -= 50
-                if self.score > self.high_score:
-                    self.high_score = self.score
-                    self.data["high_score"] = self.high_score
-                    self.data["max_level"] = max(self.level, self.data["max_level"])
-                    save_game_data(self.data)
+
+                    # Each time 10 lines are cleared, you will advance to the next level (and you can advance multiple times).
+                    new_level = self.lines_cleared // 10 + 1
+                    if new_level > old_level:
+                        self.level = new_level
+                        self.drop_speed = max(150, 500 - (self.level - 1) * 50)  # 最快不低于150ms
+
+                    # Update the highest score
+                    if self.score > self.high_score:
+                        self.high_score = self.score
+                        self.data["high_score"] = self.high_score
+                        self.data["max_level"] = max(self.level, self.data["max_level"])
+                        save_game_data(self.data)
+
+                # Generate a new block
                 if not self.new_block():
-                    return False
-            self.last_drop_time = now
+                    return False  # Game Over
         return True
 
     def draw(self, surface):
@@ -88,12 +98,12 @@ class Game:
                     pygame.draw.rect(surface, self.next_block.color,
                                      (COLS * BLOCK_SIZE + 10 + x * 20,
                                       80 + y * 20, 20, 20))
-                    # ✅ 操作提示文字
+                    # Operation Instruction Text
                     control_font = pygame.font.SysFont("Arial", 18)
                     controls_title = control_font.render("Controls:", True, (200, 200, 200))
                     surface.blit(controls_title, (COLS * BLOCK_SIZE + 10, 180))
 
-                    # 按键说明
+                    # button instruction
                     controls = [
                         ("← → : Move", (COLS * BLOCK_SIZE + 10, 205)),
                         ("↑ : Rotate", (COLS * BLOCK_SIZE + 10, 225)),
@@ -106,5 +116,3 @@ class Game:
                     for text, pos in controls:
                         line = control_font.render(text, True, (180, 180, 180))
                         surface.blit(line, pos)
-
-
